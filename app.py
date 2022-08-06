@@ -19,10 +19,11 @@ mysql.init_app(app)
 
 # Get leave requests
 
-
+'''
 @app.route('/home', methods=['POST', 'GET'])
 def helloworld():
     return jsonify({'message': 'Hello World!'})
+'''
 
 
 @app.route('/api/uc10/get-leave-requests', methods=['POST', 'GET'])
