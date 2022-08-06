@@ -13,15 +13,17 @@ app.config['MYSQL_PASSWORD'] = ''
 app.config['MYSQL_DB'] = 'leave_request'
 app.config['MYSQL_HOST'] = 'localhost'
 
-#Example call API: http://127.0.0.1:3000/api/uc10/get-leave-request/
+# Example call API: http://127.0.0.1:3000/api/uc10/get-leave-request/
 
 mysql.init_app(app)
 
 # Get leave requests
 
+
 @app.route('/home', methods=['POST', 'GET'])
 def helloworld():
     return jsonify({'message': 'Hello World!'})
+
 
 @app.route('/api/uc10/get-leave-requests', methods=['POST', 'GET'])
 def get_leave_request():
@@ -69,7 +71,7 @@ def get_leave_request():
         leavefrom = f"'{leavefrom}'"
     except:
         print("Cannot find leave from of the leave request")
-    
+
     leaveto = "1970-01-01"
     try:
         leaveto = body_request["leave_to"]
@@ -78,24 +80,27 @@ def get_leave_request():
     except:
         print("Cannot find leave to of the leave request")
 
-    leave_typeid= ""
+    leave_typeid = "" 
     try:
         leave_typeid = body_request["leave_type"].lower()
+        switcher = {
+            'annual leave': '1',
+            'personal leave': '2',
+            'compensation leave': '3',
+            'sick leave': '4',
+            'non-paid leave': '5',
+            'maternity leave': '6',
+            'engagement ceremony': '7',
+            'wedding leave': '8',
+            'relative funeral leave': '9'
+        }
+        leave_typeid = switcher.get(leave_typeid, "Invalid leave type id")
     except:
         print("Cannot find leave type of the leave request")
-    print(leave_typeid)
-    switcher={
-                'annual leave':'1',
-                'personal leave':'2',
-                'compensation leave':'3',
-                'sick leave':'4',
-                'non-paid leave':'5',
-                'maternity leave':'6',
-                'engagement ceremony':'7',
-                'wedding leave':'8',
-                'relative funeral leave':'9'
-             }
-    leave_typeid = switcher.get(leave_typeid,"Invalid leave type id")
+        
+    if(leave_typeid == "Invalid leave type id" or leave_typeid == ""):
+        leave_typeid = 0 #mac dinh la lay het leavetype
+    print("Leave type id lan 2 la: " + str(leave_typeid))
     status = []
     try:
         status = body_request["status"]
@@ -104,20 +109,28 @@ def get_leave_request():
 
     for i in range(0, len(status)):
         status[i] = f"'{status[i]}'"
-    
-    #Get the record
+
+    # Get the record
     query_string = "SELECT * FROM request_leave "+" WHERE STATUS IN (" + ",".join(
         status) + ")" + f" AND EMPLOYEE_ID = {employee_id}" + f" AND LEAVE_FROM >= {leavefrom}" + f" AND LEAVE_TO >= {leaveto}" + f" LIMIT {offset},{limit}"
-
+    print("Do dai cua status" + str(len(status)))
     try:
-        if(len(status) == 0):
-           query_string = "SELECT * FROM request_leave " + \
+        if(len(status) == 0 and leave_typeid != 0):
+            query_string = "SELECT * FROM request_leave " + \
                 f" WHERE EMPLOYEE_ID = {employee_id}" + f" AND LEAVE_FROM >= {leavefrom}" + \
                 f" AND LEAVE_TO >= {leaveto}" + \
-                f" LIMIT {offset},{limit}" 
+                f" AND LEAVE_TYPE = {leave_typeid}" + \
+                f" LIMIT {offset},{limit}"
+            print(query_string)
+        elif(len(status) == 0 and (leave_typeid == 0 or leave_typeid == '0')):
+            query_string = "SELECT * FROM request_leave " + \
+                f" WHERE EMPLOYEE_ID = {employee_id}" + f" AND LEAVE_FROM >= {leavefrom}" + \
+                f" AND LEAVE_TO >= {leaveto}" + \
+                f" LIMIT {offset},{limit}"
+            print(query_string)
     except:
-        return "Status is not array",500
-    
+        return "Status is not array", 500
+
     cursor.execute(query_string)
 
     row_headers = [x[0] for x in cursor.description]
@@ -128,10 +141,15 @@ def get_leave_request():
 
     # get the number of total record
     query_string = "SELECT COUNT(*) FROM request_leave "+" WHERE STATUS IN (" + ",".join(
-        status) + ")" + f" AND EMPLOYEE_ID = {employee_id}" + f" AND LEAVE_FROM >= {leavefrom}" + f" AND LEAVE_TO >= {leaveto}"
+        status) + ")" + f" AND EMPLOYEE_ID = {employee_id}" + f" AND LEAVE_FROM >= {leavefrom}" + f" AND LEAVE_TO >= {leaveto} "
 
     try:
-        if(len(status) == 0):
+        if(len(status) == 0 and leave_typeid != 0):
+            query_string = "SELECT COUNT(*) FROM request_leave " + f" WHERE EMPLOYEE_ID = {employee_id}" + \
+                f" AND LEAVE_FROM >= {leavefrom}" + \
+                f" AND LEAVE_TO >= {leaveto}" + \
+                f" AND LEAVE_TYPE = {leave_typeid}"
+        elif(len(status) == 0 and leave_typeid == 0):
             query_string = "SELECT COUNT(*) FROM request_leave " + f" WHERE EMPLOYEE_ID = {employee_id}" + \
                 f" AND LEAVE_FROM >= {leavefrom}" + \
                 f" AND LEAVE_TO >= {leaveto}"
@@ -184,4 +202,4 @@ def delete_leavereq():
         except:
             return "System has error", 500
     else:
-            return "System has error when deleting leave request", 500
+        return "System has error when deleting leave request", 500
