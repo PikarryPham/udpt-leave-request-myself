@@ -1,9 +1,6 @@
 from flask import Flask, jsonify, request
 from datetime import datetime
 from flask_mysqldb import MySQL
-import smtplib
-import ssl
-from email.message import EmailMessage
 
 # python -m flask run -h localhost -p 3000
 
@@ -16,7 +13,7 @@ app.config['MYSQL_PASSWORD'] = ''
 app.config['MYSQL_DB'] = 'leave_request'
 app.config['MYSQL_HOST'] = 'localhost'
 
-#Example call API: http://127.0.0.1:5000/api/uc10/get-leave-request/
+#Example call API: http://127.0.0.1:3000/api/uc10/get-leave-request/
 
 mysql.init_app(app)
 
@@ -26,7 +23,7 @@ mysql.init_app(app)
 def helloworld():
     return jsonify({'message': 'Hello World!'})
 
-@app.route('/api/uc10/get-leave-request', methods=['POST', 'GET'])
+@app.route('/api/uc10/get-leave-requests', methods=['POST', 'GET'])
 def get_leave_request():
     """
     Example req body
@@ -37,12 +34,55 @@ def get_leave_request():
        "status":[], 
        "leave_from":"2020-01-01", //optional
        "leave_to":"2020-01-01", //optional
-       "leave_type":"Annual Leave", //optional
+       "leave_type":"Annual Leave" //optional
     }
     """
+    conn = mysql.connection
+    cursor = conn.cursor()
     body_request = request.get_json()
-    leave_typeid=""
-    leave_typeid = body_request["leave_typeid"].lower()
+
+    page = 0  # Trang 1: page 0, Trang 2: page 1....
+    limit = 5  # Mac dinh moi trang co 5 bang ghi
+
+    try:
+        page = body_request["page"]
+    except:
+        print("page not found")
+
+    try:
+        limit = body_request["limit"]
+    except:
+        print("limit not found")
+
+    offset = int(page)*int(limit)
+
+    employee_id = ""
+    try:
+        employee_id = body_request["employee_id"]
+    except:
+        return "Employee id not found", 500
+
+    leavefrom = "1970-01-01"
+    try:
+        leavefrom = body_request["leave_from"]
+        leavefrom = str(leavefrom)
+        leavefrom = f"'{leavefrom}'"
+    except:
+        print("Cannot find leave from of the leave request")
+    
+    leaveto = "1970-01-01"
+    try:
+        leaveto = body_request["leave_to"]
+        leaveto = str(leaveto)
+        leaveto = f"'{leaveto}'"
+    except:
+        print("Cannot find leave to of the leave request")
+
+    leave_typeid= ""
+    try:
+        leave_typeid = body_request["leave_type"].lower()
+    except:
+        print("Cannot find leave type of the leave request")
     print(leave_typeid)
     switcher={
                 'annual leave':'1',
@@ -56,10 +96,58 @@ def get_leave_request():
                 'relative funeral leave':'9'
              }
     leave_typeid = switcher.get(leave_typeid,"Invalid leave type id")
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM request_leave")
-    rv = cur.fetchall()
-    return jsonify(leave_typeid)
+    status = []
+    try:
+        status = body_request["status"]
+    except:
+        print("status not found")
+
+    for i in range(0, len(status)):
+        status[i] = f"'{status[i]}'"
+    
+    #Get the record
+    query_string = "SELECT * FROM request_leave "+" WHERE STATUS IN (" + ",".join(
+        status) + ")" + f" AND EMPLOYEE_ID = {employee_id}" + f" AND LEAVE_FROM >= {leavefrom}" + f" AND LEAVE_TO >= {leaveto}" + f" LIMIT {offset},{limit}"
+
+    try:
+        if(len(status) == 0):
+           query_string = "SELECT * FROM request_leave " + \
+                f" WHERE EMPLOYEE_ID = {employee_id}" + f" AND LEAVE_FROM >= {leavefrom}" + \
+                f" AND LEAVE_TO >= {leaveto}" + \
+                f" LIMIT {offset},{limit}" 
+    except:
+        return "Status is not array",500
+    
+    cursor.execute(query_string)
+
+    row_headers = [x[0] for x in cursor.description]
+    data = cursor.fetchall()
+    json_data = []
+    for result in data:
+        json_data.append(dict(zip(row_headers, result)))
+
+    # get the number of total record
+    query_string = "SELECT COUNT(*) FROM request_leave "+" WHERE STATUS IN (" + ",".join(
+        status) + ")" + f" AND EMPLOYEE_ID = {employee_id}" + f" AND LEAVE_FROM >= {leavefrom}" + f" AND LEAVE_TO >= {leaveto}"
+
+    try:
+        if(len(status) == 0):
+            query_string = "SELECT COUNT(*) FROM request_leave " + f" WHERE EMPLOYEE_ID = {employee_id}" + \
+                f" AND LEAVE_FROM >= {leavefrom}" + \
+                f" AND LEAVE_TO >= {leaveto}"
+    except:
+        return "System has error", 500
+
+    cursor.execute(query_string)
+    total = int(cursor.fetchall()[0][0])
+
+    cursor.close()
+
+    return jsonify({
+        "total": total,
+        "data": json_data,
+    })
+
 
 @app.route('/api/uc10/delete-a-request', methods=['POST', 'DELETE'])
 def delete_leavereq():
