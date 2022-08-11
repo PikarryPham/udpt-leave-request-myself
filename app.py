@@ -2,10 +2,10 @@ from flask import Flask, jsonify, request
 from datetime import datetime
 from flask_mysqldb import MySQL
 
-# python -m flask run -h localhost -p 3000
-
 mysql = MySQL()
 app = Flask(__name__)
+
+#python -m flask run -h localhost -p 3000
 
 # MySQL configurations
 app.config['MYSQL_USER'] = 'root'
@@ -13,37 +13,27 @@ app.config['MYSQL_PASSWORD'] = ''
 app.config['MYSQL_DB'] = 'leave_request'
 app.config['MYSQL_HOST'] = 'localhost'
 
-# Example call API: http://127.0.0.1:3000/api/uc10/get-leave-request/
-
 mysql.init_app(app)
 
-# Get leave requests
 
-'''
-@app.route('/home', methods=['POST', 'GET'])
-def helloworld():
-    return jsonify({'message': 'Hello World!'})
-'''
-
-
-@app.route('/api/uc10/get-leave-requests', methods=['GET','POST'])
+@app.route('/api/uc10/get-leave-requests', methods=['GET'])
 def get_leave_request():
     """
     Example req body
     {
-       "limit":"1", //optional
-       "page":"0", //optional
-       "employee_id":"1",
-       "status":[], 
-       "leave_from":"2020-01-01", //optional
-       "leave_to":"2020-01-01", //optional
-       "leave_type":"Annual Leave" //optional
+       "limit": "1", //optional
+       "page": "1", //optional
+       "employee_id": "1",
+       "status": [], 
+       "leave_from": "2020-01-01", //optional
+       "leave_to": "2020-01-01", //optional
+       "leave_type": "1" //optional
     }
     """
     conn = mysql.connection
     cursor = conn.cursor()
-    body_request = request.get_json()
-    # body_request = request.args
+    # body_request = request.get_json()
+    body_request = request.args
     # print(body_request)
 
     page = 0
@@ -53,13 +43,13 @@ def get_leave_request():
         page = body_request["page"]
         page = int(page)
     except:
-        print("page not found")
+        print("Page not found")
 
     try:
         limit = body_request["limit"]
         limit = int(limit)
     except:
-        print("limit not found")
+        print("Limit not found")
 
     offset = int(page) * int(limit)
 
@@ -67,7 +57,7 @@ def get_leave_request():
     try:
         employee_id = body_request["employee_id"]
     except:
-        return "Employee id not found", 500
+        print("Employee id not found")
 
     leavefrom = ''
     try:
@@ -75,7 +65,7 @@ def get_leave_request():
         # leavefrom = str(leavefrom)
         # leavefrom = f"'{leavefrom}'"
     except:
-        print("Cannot find leave from of the leave request")
+        print("Leave from not found")
 
     leaveto = ''
     try:
@@ -83,7 +73,7 @@ def get_leave_request():
         # leaveto = str(leaveto)
         # leaveto = f"'{leaveto}'"
     except:
-        print("Cannot find leave to of the leave request")
+        print("Leave to not found")
 
     leave_typeid = 0
     try:
@@ -102,7 +92,7 @@ def get_leave_request():
         # }
         # leave_typeid = switcher.get(leave_typeid, "Invalid leave type id")
     except:
-        print("Cannot find leave type of the leave request")
+        print("Leave type not found")
 
     # if(leave_typeid == "Invalid leave type id" or leave_typeid == ""):
     #     leave_typeid = 0  # mac dinh la lay het leavetype
@@ -120,12 +110,6 @@ def get_leave_request():
             arr_status[i] = f"'{arr_status[i]}'"
 
         search_status = ",".join(arr_status)
-
-    year = ''
-    try:
-        year = body_request["year"]
-    except:
-        print("Year not found")
 
     # Get the record
     # query_string = "SELECT * FROM request_leave "+" WHERE STATUS IN (" + ",".join(
@@ -163,15 +147,12 @@ def get_leave_request():
         if leaveto != '':
             query_string += f" AND LEAVE_TO <= '{leaveto}'"
 
-        if year != '':
-            query_string += f" AND YEAR(CREATE_DATE) = {year}"
-
         if offset != 0 and limit != 0:
             query_string += f" LIMIT {offset},{limit}"
 
         # print(query_string)
-    except:
-        return "Query string has error 1", 500
+    except Exception as e:
+        print(e)
 
     cursor.execute(query_string)
 
@@ -214,12 +195,9 @@ def get_leave_request():
         if leaveto != '':
             query_string += f" AND LEAVE_TO <= '{leaveto}'"
 
-        if year != '':
-            query_string += f" AND YEAR(CREATE_DATE) = {year}"
-
         # print(query_string)
-    except:
-        return "Query count string has error 2", 500
+    except Exception as e:
+        print(e)
 
     cursor.execute(query_string)
     total = int(cursor.fetchall()[0][0])
@@ -233,7 +211,7 @@ def get_leave_request():
     })
 
 
-@app.route('/api/uc10/delete-a-request', methods=['DELETE','POST'])
+@app.route('/api/uc10/delete-a-request', methods=['DELETE'])
 def delete_leavereq():
     """
     Example req body
@@ -244,28 +222,28 @@ def delete_leavereq():
     conn = mysql.connection
     cursor = conn.cursor()
 
-    body_request = request.get_json()
-    #body_request = request.args
-    print(body_request)
+    # body_request = request.get_json()
+    body_request = request.args
+    # print(body_request)
 
-    rleave_id = ""
+    rleave_id = ''
     try:
         rleave_id = body_request["rleave_id"]
     except:
-        return "Leave request ID not found. Please enter the Leave request ID", 400
+        print("Leave request ID not found. Please enter the Leave request ID")
 
     if (type(rleave_id).__name__ != 'str'):
-        return "Leave request ID is not a string", 400
+        print("Leave request ID is not a string")
 
     if rleave_id != '':
         try:
-            print('vao day 1')
             query_string = f"SELECT * FROM request_leave where RLEAVE_ID = {rleave_id}"
 
             cursor.execute(query_string)
 
+            data = cursor.fetchall()[0]
+
             if (len(data) > 0):
-                print('vao day 2')
                 cursor.execute('DELETE FROM request_leave_detail WHERE RLEAVE_ID = %s',
                                (rleave_id))
 
@@ -284,21 +262,17 @@ def delete_leavereq():
                 "success": 0,
                 "data": []
             })
-        except:
-            return "System has error", 500
+        except Exception as e:
+            print(e)
     else:
-        return "System has error when deleting leave request", 500
+        print('Leave request ID is empty')
 
-
-# Thêm cors vào để không bị vi phạm các quy định của cors
 
 @app.after_request
 def after_request(response):
     header = response.headers
     header['Access-Control-Allow-Origin'] = '*'
     header['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-    header['Access-Control-Allow-Methods'] = 'OPTIONS, HEAD, GET, POST, DELETE, PUT, PATCH'
+    header['Access-Control-Allow-Methods'] = 'OPTIONS, HEAD, GET, POST, DELETE, PUT'
 
     return response
-
-# Ngoài ra ta cần cài đặt các biến venv cho python để đóng gói các package cần thiết
